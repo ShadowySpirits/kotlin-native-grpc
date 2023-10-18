@@ -11,7 +11,7 @@ This is a Kotlin Multiplatform gRPC client library based on [wire](https://githu
 
 ## Usage
 
-Try to run the demo command to create a topic on RocketMQ broker.
+Run the demo command to create a topic on RocketMQ broker via gRPC protocol. Download the binary from [releases](https://github.com/ShadowySpirits/kotlin-native-grpc/releases/tag/0.1.0) or build yourself.
 
 ```shell
 ./mqadmin -h
@@ -23,6 +23,14 @@ Options:
 
 Commands:
   create-topic  Create a new topic
+```
+
+## Build
+
+Requirement: libcurl-dev
+
+```shell
+./gradlew assemble
 ```
 
 [badge-linux]: http://img.shields.io/badge/-linux-2D3F6C.svg?style=flat 
