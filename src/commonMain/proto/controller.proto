@@ -1,0 +1,416 @@
+syntax = "proto3";
+
+package apache.rocketmq.controller.v1;
+
+import "model.proto";
+
+option java_multiple_files = true;
+option java_package = "apache.rocketmq.controller.v1";
+option java_generate_equals_and_hash = true;
+option java_string_check_utf8 = true;
+option java_outer_classname = "ControllerApis";
+
+message Uuid {
+  int64 most_significant_bits = 1;
+  int64 least_significant_bits = 2;
+}
+
+// Define all error codes here
+enum Code {
+  OK = 0;
+  INTERRUPTED = 1;
+  NOT_FOUND = 404;
+  INTERNAL = 500;
+  NO_LEADER = 1000;
+  BAD_REQUEST = 1001;
+  MOCK_FAILURE = 1002;
+  DUPLICATED = 1003;
+
+  // Illegal state for the operation
+  ILLEGAL_STATE = 1004;
+
+  // Operation is fenced out as provided epoch is deprecated.
+  FENCED = 1005;
+
+  // Broker nodes are unavailable
+  NODE_UNAVAILABLE = 1006;
+}
+
+message Status {
+  Code code = 1;
+  string message = 2;
+}
+
+// Aggregates common request headers, authentication, etc.
+message ControllerRequestContext {}
+
+message NodeRegistrationRequest {
+  ControllerRequestContext context = 1;
+
+  // Name of the broker, controller node
+  string broker_name = 2;
+
+  // Address of the broker/controller node, through which to accept connections from peers
+  string address = 3;
+
+  // The instance-id of the elastic cloud
+  string instance_id = 4;
+
+  // To uniquely identify each instance of a specific broker ID. This field is designed to change in case of
+  // broker restarts.
+  Uuid fingerprint = 5;
+}
+
+message NodeRegistrationReply {
+  Status status = 1;
+
+  // Broker-id
+  int32 id = 2;
+
+  // Epoch of the broker node
+  int64 epoch = 3;
+}
+
+message NodeUnregistrationRequest {
+  ControllerRequestContext context = 1;
+  int32 broker_id = 2;
+  string cluster_id = 3;
+}
+
+message NodeUnregistrationReply {
+  Status status = 1;
+}
+
+message HeartbeatRequest {
+  int32 id = 1;
+  int64 epoch = 2;
+
+  // Flag whether this broker is going to shutdown shortly.
+  bool going_away = 3;
+}
+
+message HeartbeatReply {
+  Status status = 1;
+}
+
+message CreateTopicRequest {
+  ControllerRequestContext context = 1;
+
+  // Topic name
+  string topic = 2;
+
+  // Number of message queues to create for this topic
+  int32 count = 3;
+
+  // The message type that the topic accepts
+  repeated MessageType accept_message_types = 4;
+}
+
+message CreateTopicReply {
+  Status status = 1;
+  int64 topic_id = 2;
+}
+
+message DescribeTopicRequest {
+  ControllerRequestContext context = 1;
+  int64 topic_id = 2;
+  string topic_name = 3;
+}
+
+message DescribeTopicReply {
+  Status status = 1;
+  Topic topic = 2;
+}
+
+message ListTopicsRequest {
+  ControllerRequestContext context = 1;
+}
+
+// Use server streaming in case there are a large number of topics available.
+message ListTopicsReply {
+  Status status = 1;
+  Topic topic = 2;
+}
+
+message UpdateTopicRequest {
+  ControllerRequestContext context = 1;
+  // Required field
+  int64 topic_id = 2;
+
+  // No op if this field is absent
+  string name = 3;
+
+  // Effective if non-zero
+  int32 count = 4;
+
+  // Effective if non-empty
+  repeated MessageType accept_message_types = 5;
+}
+
+message UpdateTopicReply {
+  Status status = 1;
+  Topic topic = 2;
+}
+
+message DeleteTopicRequest {
+  ControllerRequestContext context = 1;
+  int64 topic_id = 2;
+}
+
+message DeleteTopicReply {
+  Status status = 1;
+}
+
+message ListMessageQueueReassignmentsRequest {
+  ControllerRequestContext context = 1;
+  repeated string topics = 2;
+}
+
+message ListMessageQueueReassignmentsReply {
+  Status status = 1;
+  repeated OngoingTopicReassignment reassignments = 2;
+}
+
+// Controller in leader role would use this request to instruct the node, which is serving the message queue, to conduct
+// migration procedure.
+message ReassignMessageQueueRequest {
+  ControllerRequestContext context = 1;
+  MessageQueue queue = 2;
+  int32 dst_node_id = 3;
+}
+
+message ReassignMessageQueueReply {
+  Status status = 1;
+}
+
+message NotifyMessageQueuesAssignableRequest {
+  ControllerRequestContext context = 1;
+  repeated MessageQueue queues = 2;
+}
+
+message NotifyMessageQueuesAssignableReply {
+  Status status = 1;
+}
+
+message CommitOffsetRequest {
+  ControllerRequestContext context = 1;
+  int64 group_id = 2;
+  MessageQueue queue = 3;
+  int64 offset = 4;
+}
+
+message CommitOffsetReply {
+  Status status = 1;
+}
+
+message OpenStreamRequest {
+  ControllerRequestContext context = 1;
+
+  // The id of the stream to open.
+  int64 stream_id = 2;
+  // The id of the broker to open the stream on.
+  int32 broker_id = 3;
+  // The epoch of the stream to open.
+  int64 stream_epoch = 4;
+  // The epoch of the broker.
+  int64 broker_epoch = 5;
+}
+
+message OpenStreamReply {
+  Status status = 1;
+
+  // The metadata of the opened stream.
+  StreamMetadata stream_metadata = 2;
+}
+
+message CloseStreamRequest {
+  ControllerRequestContext context = 1;
+
+  // The id of the stream to close.
+  int64 stream_id = 2;
+  // The id of the broker to close the stream on.
+  int32 broker_id = 3;
+  // The epoch of the stream to close.
+  int64 stream_epoch = 4;
+  // The epoch of the broker.
+  int64 broker_epoch = 5;
+}
+
+message CloseStreamReply {
+  Status status = 1;
+}
+
+message TrimStreamRequest {
+  ControllerRequestContext context = 1;
+
+  // The id of the stream to trim.
+  int64 stream_id = 2;
+  // The id of the broker to trim the stream on.
+  int32 broker_id = 3;
+  // The epoch of the stream to trim.
+  int64 stream_epoch = 4;
+  // The epoch of the broker.
+  int64 broker_epoch = 5;
+  // The new start offset of the stream.
+  int64 new_start_offset = 6;
+}
+
+message TrimStreamReply {
+  Status status = 1;
+}
+
+// List all streams opened on a specific broker.
+message ListOpenStreamsRequest {
+  ControllerRequestContext context = 1;
+
+  // The id of the broker to list streams on.
+  int32 broker_id = 2;
+  // The epoch of the broker.
+  int64 broker_epoch = 3;
+}
+
+message ListOpenStreamsReply {
+  Status status = 1;
+
+  repeated StreamMetadata stream_metadata = 2;
+}
+
+// Request to prepare S3 objects before uploading.
+// The prepare and commit APIs follow the 2-phase commit manner to avoid leaving garbage in S3.
+message PrepareS3ObjectsRequest {
+  ControllerRequestContext context = 1;
+
+  // The count of the S3 object to prepare.
+  int32 prepared_count = 2;
+  // The TTL of the prepared S3 object.
+  // The S3Object manager would delete the object after the TTL expires.
+  int64 time_to_live_minutes = 3;
+}
+
+message PrepareS3ObjectsReply {
+  Status status = 1;
+
+  // The id of the first prepared S3 object.
+  int64 first_object_id = 2;
+}
+
+message CommitWALObjectRequest {
+  ControllerRequestContext context = 1;
+
+  // The id of the broker to commit the WAL object on.
+  int32 broker_id = 2;
+  // The epoch of the broker.
+  int64 broker_epoch = 3;
+
+  S3WALObject s3_wal_object = 4;
+
+  // The WAL object to commit may be generated by compaction process.
+  // Some stream objects may be split from the previous WAL objects.
+  repeated S3StreamObject s3_stream_objects = 5;
+
+  // The compacted object ids.
+  repeated int64 compacted_object_ids = 6;
+}
+
+message CommitWALObjectReply {
+  Status status = 1;
+}
+
+message CommitStreamObjectRequest {
+  ControllerRequestContext context = 1;
+
+  // The id of the broker to commit the stream object on.
+  int32 broker_id = 2;
+  // The epoch of the broker.
+  int64 broker_epoch = 3;
+
+  S3StreamObject s3_stream_object = 4;
+
+  // The compacted object ids.
+  repeated int64 compacted_object_ids = 5;
+}
+
+message CommitStreamObjectReply {
+  Status status = 1;
+}
+
+message CreateGroupRequest {
+  ControllerRequestContext context = 1;
+
+  // Consumer group name
+  string name = 2;
+
+  // Maximum retry attempts before forwarding messages to dead-letter-queue
+  int32 max_retry_attempt = 3;
+
+  // Type of the group, standard for max concurrency and FIFO for message-group scope ordering
+  GroupType group_type = 4;
+
+  // Associated topic for dead letters.
+  int64 dead_letter_topic_id = 5;
+
+  // How transactional messages are consumed.
+  IsolationLevel isolation = 6;
+}
+
+message CreateGroupReply {
+  Status status = 1;
+
+  int64 group_id = 2;
+}
+
+service ControllerService {
+  rpc registerNode(NodeRegistrationRequest) returns (NodeRegistrationReply) {}
+
+  rpc unregisterNode(NodeUnregistrationRequest) returns (NodeUnregistrationReply) {}
+
+  rpc heartbeat(HeartbeatRequest) returns (HeartbeatReply) {}
+
+  rpc createTopic(CreateTopicRequest) returns (CreateTopicReply) {}
+
+  rpc describeTopic(DescribeTopicRequest) returns (DescribeTopicReply) {}
+
+  rpc listAllTopics(ListTopicsRequest) returns (stream ListTopicsReply) {}
+
+  rpc updateTopic(UpdateTopicRequest) returns (UpdateTopicReply) {}
+
+  rpc deleteTopic(DeleteTopicRequest) returns (DeleteTopicReply) {}
+
+  // Reassign message queue from one broker to another.
+  rpc reassignMessageQueue(ReassignMessageQueueRequest) returns (ReassignMessageQueueReply) {}
+
+  // For broker to notify leader controller that the message queues have become assignable. Message queues might be in
+  // its own charge or just adopted from a crashed node.
+  rpc notifyMessageQueueAssignable(NotifyMessageQueuesAssignableRequest) returns (NotifyMessageQueuesAssignableReply) {}
+
+  // List ongoing message queue reassignments.
+  rpc listMessageQueueReassignments(ListMessageQueueReassignmentsRequest) returns (ListMessageQueueReassignmentsReply) {}
+
+  rpc createGroup(CreateGroupRequest) returns (CreateGroupReply) {}
+
+  rpc commitOffset(CommitOffsetRequest) returns (CommitOffsetReply) {}
+
+  // Open a stream on a broker.
+  // A stream should be opened before it can be written to or read from.
+  rpc openStream(OpenStreamRequest) returns (OpenStreamReply) {}
+
+  // Close a stream on a broker.
+  // The associated queue can be reassigned after the stream is closed.
+  rpc closeStream(CloseStreamRequest) returns (CloseStreamReply) {}
+
+  // Trim a stream to a new start offset.
+  rpc trimStream(TrimStreamRequest) returns (TrimStreamReply) {}
+
+  // List all streams opened on a specific broker.
+  rpc listOpenStreams(ListOpenStreamsRequest) returns (ListOpenStreamsReply) {}
+
+  // Prepare S3 objects before uploading.
+  rpc prepareS3Objects(PrepareS3ObjectsRequest) returns (PrepareS3ObjectsReply) {}
+
+  // Commit a WAL object.
+  rpc commitWALObject(CommitWALObjectRequest) returns (CommitWALObjectReply) {}
+
+  // Commit a stream object.
+  rpc commitStreamObject(CommitStreamObjectRequest) returns (CommitStreamObjectReply) {}
+}
+

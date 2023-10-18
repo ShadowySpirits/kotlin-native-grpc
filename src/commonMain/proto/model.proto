@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+package apache.rocketmq.controller.v1;
+
+option java_multiple_files = true;
+option java_package = "apache.rocketmq.controller.v1";
+option java_generate_equals_and_hash = true;
+option java_string_check_utf8 = true;
+option java_outer_classname = "ControllerDomains";
+
+enum AssignmentStatus {
+  ASSIGNMENT_STATUS_UNSPECIFIED = 0;
+  ASSIGNMENT_STATUS_YIELDING = 1;
+  ASSIGNMENT_STATUS_ASSIGNED = 2;
+  ASSIGNMENT_STATUS_DELETED = 3;
+}
+
+enum TopicStatus {
+  TOPIC_STATUS_UNSPECIFIED = 0;
+  TOPIC_STATUS_ACTIVE = 1;
+  TOPIC_STATUS_DELETED = 2;
+}
+
+message Topic {
+  string name = 1;
+  int64 topic_id = 2;
+  int32 count = 3;
+  repeated MessageType accept_message_types = 4;
+  repeated MessageQueueAssignment assignments = 5;
+  // Message queues that are in the progress of reassignment
+  repeated OngoingMessageQueueReassignment reassignments = 6;
+}
+
+message MessageQueue {
+  int64 topic_id = 1;
+  int32 queue_id = 2;
+}
+
+message MessageQueueAssignment {
+  MessageQueue queue = 1;
+  int32 node_id = 2;
+}
+
+message OngoingTopicReassignment {
+  string name = 1;
+  repeated OngoingMessageQueueReassignment queues = 2;
+}
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+
+  NORMAL = 1;
+
+  // Sequenced message
+  FIFO = 2;
+
+  // Messages that are delivered after the specified duration.
+  DELAY = 3;
+
+  // Messages that are transactional. Only committed messages are delivered to
+  // subscribers.
+  TRANSACTION = 4;
+}
+
+enum GroupStatus {
+  GROUP_STATUS_UNSPECIFIED = 0;
+  GROUP_STATUS_ACTIVE = 1;
+  GROUP_STATUS_DELETED = 2;
+}
+
+enum GroupType {
+  GROUP_TYPE_UNSPECIFIED = 0;
+  GROUP_TYPE_STANDARD = 1;
+  GROUP_TYPE_FIFO = 2;
+}
+
+enum IsolationLevel {
+  ISOLATION_LEVEL_UNSPECIFIED = 0;
+  READ_UNCOMMITTED = 1;
+  READ_COMMITTED = 2;
+}
+
+message OngoingMessageQueueReassignment {
+  MessageQueue queue = 1;
+  int32 src_node_id = 2;
+  int32 dst_node_id = 3;
+}
+
+message ConsumerGroup {
+  string name = 1;
+  int64 group_id = 2;
+  GroupType group_type = 3;
+  int32 max_delivery_attempt = 4;
+  int64 dead_letter_topic_id = 5;
+}
+
+// Bellow messages are used to represent the `Stream` resource.
+// A stream is similar to a partition, typically each message queue has a linked stream.
+// The stream is the physical storage unit of the message queue in the cloud blob storage, like S3, GCS, etc.
+message StreamMetadata {
+  // The stream ID of the stream.
+  int64 stream_id = 1;
+
+  // The epoch of the stream.
+  int64 epoch = 2;
+
+  // The last range that belongs to the stream.
+  int32 range_id = 3;
+
+  // The start offset of the stream, inclusive.
+  int64 start_offset = 4;
+
+  // End offset of this stream, exclusive.
+  // This field is equal to the end offset of the last range of the stream.
+  int64 end_offset = 5;
+
+  // The stream state.
+  StreamState state = 6;
+}
+
+enum StreamRole {
+  STREAM_ROLE_UNSPECIFIED = 0;
+  STREAM_ROLE_DATA = 1;
+  STREAM_ROLE_OPS = 2;
+  STREAM_ROLE_RETRY = 3;
+  STREAM_ROLE_SNAPSHOT = 4;
+}
+
+enum StreamState {
+  // The stream state is unspecified.
+  UNSPECIFIED = 0;
+
+  // The stream is in the un initial state.
+  UNINITIALIZED = 1;
+
+  // The stream is in the open state.
+  OPEN = 2;
+
+  // Once the leader controller has decided to migrate the stream to another node, it would flag its state as closing
+  // and update src_node_id and dst_node_id accordingly.
+  // Once the src node received this event, it would close the stream and update this field to closed.
+  // When dst node gets to know that the src node has closed the steam, it would open the stream again for read/write.
+  CLOSING = 3;
+
+  // The stream is in the closed state.
+  CLOSED = 4;
+
+  // The stream is in the deleted state.
+  DELETED = 5;
+}
+
+
+// A stream consists of a sequence of ranges.
+message Range {
+  // The range ID of the range.
+  int32 range_id = 1;
+  // The stream ID of the range belongs to.
+  int64 stream_id = 2;
+  // The epoch of the range.
+  int64 epoch = 3;
+  // The start offset of the range, inclusive.
+  int64 start_offset = 4;
+  // End offset of this range, exclusive.
+  int64 end_offset = 5;
+  // The broker that created the range.
+  // When the stream is opened at a new broker, a new range will be created.
+  int32 broker_id = 6;
+}
+// Bellow messages are used for manage stream metadata in the cloud object storage, like S3, GCS, etc.
+
+// Each object object represents a object in the cloud object storage.
+// The object object has two types: WAL object and stream object.
+message S3Object {
+  // Unique ID of the object, will participate in the object name.
+  int64 object_id = 1;
+  // Size of the object.
+  int64 object_size = 2;
+  // The prepared timestamp in milliseconds of the object.
+  int64 prepared_timestamp = 3;
+  // The committed timestamp in milliseconds of the object.
+  int64 committed_timestamp = 4;
+  // The expired timestamp in milliseconds of the object.
+  int64 expired_timestamp = 5;
+  // The marked for deletion timestamp in milliseconds of the object.
+  int64 marked_for_deletion_timestamp = 6;
+  // The object state.
+  S3ObjectState state = 7;
+}
+
+enum S3ObjectState {
+  // The object state is unspecified.
+  BOS_UNSPECIFIED = 0;
+  // The object is prepared.
+  BOS_PREPARED = 1;
+  // The object is committed.
+  BOS_COMMITTED = 2;
+  // The object is marked for deletion.
+  BOS_WILL_DELETE = 3;
+}
+
+message S3StreamObject {
+  // The stream ID of the object belongs to.
+  int64 stream_id = 1;
+  // The start offset of the the stream in the object.
+  int64 start_offset = 2;
+  // The end offset of the the stream in the object.
+  int64 end_offset = 3;
+  // The id of the S3 object.
+  int64 object_id = 4;
+  // The size of the object.
+  int64 object_size = 5;
+  // A rough base data timestamp of the WAL object.
+  int64 base_data_timestamp = 6;
+  // The committed timestamp in milliseconds of the object.
+  int64 committed_timestamp = 7;
+}
+
+// Each broker WAL consists of a sequence of WAL objects.
+message S3WALObject {
+  // The broker that the WAL object belongs to.
+  // Each WAL only owned by a fixed broker, although it may be shared or replicated to other brokers.
+  int32 broker_id = 1;
+  // The id of the S3 object.
+  int64 object_id = 2;
+  // The sequence id of the WAL object.
+  int64 sequence_id = 3;
+  // A rough base data timestamp of the WAL object.
+  int64 base_data_timestamp = 4;
+  // The committed timestamp in milliseconds of the object.
+  int64 committed_timestamp = 5;
+  // The size of the object.
+  int64 object_size = 6;
+  // The data of the WAL object consists of many sub streams.
+  map<int64, SubStream> sub_streams = 7;
+}
+
+// The `SubStream` is used to represent a segment of a stream in the WAL.
+// There is no physical object for the `SubStream`, it is just a logical concept.
+// Currently, the `SubStream` is only used to represent a data segment in the WAL object.
+message SubStream {
+  // The stream ID of the range belongs to.
+  int64 stream_id = 1;
+  // The start offset of the range, inclusive.
+  int64 start_offset = 2;
+  // End offset of this range, exclusive.
+  int64 end_offset = 3;
+}
